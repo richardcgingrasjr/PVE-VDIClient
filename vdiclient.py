@@ -24,6 +24,7 @@ class G:
 	user = ""
 	token_name = None
 	token_value = None
+	auto_login = False
 	totp = False
 	imagefile = None
 	kiosk = False
@@ -115,6 +116,8 @@ def loadconfig(config_location = None):
 				G.token_name = config['Authentication']['token_name']
 		if 'token_value' in config['Authentication']:
 				G.token_value = config['Authentication']['token_value']
+		if 'auto_login' in config['Authentication']:
+				G.auto_login = config['Authentication']['auto_login']
 	if not 'Hosts' in config:
 		win_popup_button(f'Unable to read supplied configuration:\nNo `Hosts` section defined!', 'OK')
 		return False
@@ -188,7 +191,7 @@ def setvmlayout(vms):
 	else:
 		for row in layoutcolumn:
 			layout.append(row)
-	layout.append([sg.Button('Logout', font=["Helvetica", 14])])
+	layout.append([sg.Button('Logout', font=["Helvetica", 14]), sg.Button('Exit', font=["Helvetica", 14])])
 	return layout
 
 def iniwin(inistring):
@@ -266,8 +269,8 @@ def vmaction(vmnode, vmid, vmtype):
 		pcmd.append('--kiosk')
 		pcmd.append('--kiosk-quit')
 		pcmd.append('on-disconnect')
-	else:
-		pcmd.append('--full-screen')
+	# else:
+	# 	pcmd.append('--full-screen')
 	pcmd.append('-') #We need it to listen on stdin
 	process = subprocess.Popen(pcmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE)
 	try:
@@ -339,6 +342,12 @@ def loginwindow():
 		window = sg.Window(G.title, layout, return_keyboard_events=True, resizable=False, no_titlebar=G.kiosk, icon=G.icon)
 	else:
 		window = sg.Window(G.title, layout, return_keyboard_events=True, resizable=False, no_titlebar=G.kiosk)
+	if G.auto_login:
+		connected, authenticated, error = pveauth(G.user, None, None)
+		if connected and authenticated:
+			# Setting to false so the login prompt can be opened again
+			G.auto_login = False
+			return True
 	while True:
 		event, values = window.read()
 		if event == 'Cancel' or event == sg.WIN_CLOSED:
@@ -379,6 +388,8 @@ def showvms():
 		if event in ('Logout', None):
 			window.close()
 			return False
+		if event in ('Exit', None):
+			break
 		if event.startswith('-CONN'):
 			eventparams = event.split('|')
 			vmid = eventparams[1][:-1]
